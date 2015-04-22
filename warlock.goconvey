@@ -1,0 +1,4 @@
+-timeout=60s
+-covermode=count
+-coverpkg=github.com/gernest/warlock
+
