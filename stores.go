@@ -27,6 +27,12 @@ type sessionValue struct {
 	Expires time.Time `json:"expires"`
 }
 
+// UserStore user storage stuffs
+type UserStore struct {
+	store  nutz.Storage
+	bucket string
+}
+
 // NewSessStore creates a new bolt dabase based session store backend
 func NewSessStore(db, bucket string, duration int, opts *sessions.Options, secrets ...[]byte) Sess {
 	return Sess{
@@ -129,4 +135,50 @@ func (s Sess) getExpires(maxAge int) time.Time {
 		return time.Now().Add(time.Second * time.Duration(s.duration))
 	}
 	return time.Now().Add(time.Second * time.Duration(maxAge))
+}
+
+// NewUserStore deals with storage of users
+func NewUserStore(db, bucket string) UserStore {
+	return UserStore{
+		store:  nutz.NewStorage(db, 0600, nil),
+		bucket: bucket,
+	}
+}
+
+// CreateUser creates a new user, email is used as the key.
+func (us UserStore) CreateUser(usr *User) error {
+	data, err := json.Marshal(usr)
+	if err != nil {
+		return err
+	}
+	g := us.store.Get(us.bucket, usr.Email)
+	if g.Data != nil {
+		return errors.New("warlock: email already exists")
+	}
+	z := g.Create(us.bucket, usr.Email, data)
+	return z.Error
+}
+
+// GetUser retrives a user given a valid email address
+func (us UserStore) GetUser(email string) (*User, error) {
+	g := us.store.Get(us.bucket, email)
+	if g.Error != nil {
+		return nil, g.Error
+	}
+	usr := new(User)
+	err := json.Unmarshal(g.Data, usr)
+	if err != nil {
+		return nil, err
+	}
+	return usr, nil
+}
+
+// UpdateUser updates user
+func (us UserStore) UpdateUser(usr *User) error {
+	data, err := json.Marshal(usr)
+	if err != nil {
+		return err
+	}
+	up := us.store.Update(us.bucket, usr.Email, data)
+	return up.Error
 }

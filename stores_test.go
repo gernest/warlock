@@ -70,3 +70,97 @@ func TestSess(t *testing.T) {
 
 	})
 }
+
+func TestUserStore(t *testing.T) {
+	Convey("UserStore", t, func() {
+		ns := NewUserStore("users.db", "account")
+		defer ns.store.DeleteDatabase()
+
+		Convey("Create new user", func() {
+			u := new(User)
+			v := u.Validate()
+			err := ns.CreateUser(u)
+
+			So(v, ShouldNotBeNil)
+			So(err, ShouldNotBeNil)
+
+			Convey("A valid user", func() {
+				u.FirstName = "young"
+				u.LastName = "wrlock"
+				u.Email = "example@example.com"
+				u.Password = "smash"
+				u.ConfirmPassword = "smash"
+
+				v = u.Validate()
+				err = ns.CreateUser(u)
+
+				So(v, ShouldBeNil)
+				So(err, ShouldBeNil)
+
+				Convey("Already Registered user", func() {
+					err := ns.CreateUser(u)
+
+					So(err, ShouldNotBeNil)
+				})
+			})
+			Convey("Check validation", func() {
+				u.FirstName = "young"
+				u.LastName = "wrlock"
+				u.Email = "example@example.com"
+				u.Password = "smash"
+
+				v = u.Validate()
+
+				So(v, ShouldNotBeNil)
+			})
+
+		})
+		Convey("Retrieving a user", func() {
+			u := &User{
+				FirstName:       "young",
+				LastName:        "warlock",
+				Email:           "wrlock@bigbang,com",
+				Password:        "shamsh",
+				ConfirmPassword: "smash",
+			}
+
+			err := ns.CreateUser(u)
+
+			usr, uerr := ns.GetUser(u.Email)
+
+			So(err, ShouldBeNil)
+			So(uerr, ShouldBeNil)
+			So(usr.FirstName, ShouldEqual, u.FirstName)
+
+			Convey("Retriving a missing record", func() {
+				usr, err = ns.GetUser("bogus@me.com")
+
+				So(usr, ShouldBeNil)
+				So(err, ShouldNotBeNil)
+			})
+		})
+		Convey("Update User", func() {
+			u := &User{
+				FirstName:       "young",
+				LastName:        "warlock",
+				Email:           "updatek@bigbang,com",
+				Password:        "shamsh",
+				ConfirmPassword: "smash",
+			}
+			cerr := ns.CreateUser(u)
+			usr, err := ns.GetUser(u.Email)
+
+			usr.FirstName = "gernest"
+			uerr := ns.UpdateUser(usr)
+
+			gusr, gerr := ns.GetUser(u.Email)
+
+			So(cerr, ShouldBeNil)
+			So(err, ShouldBeNil)
+			So(gerr, ShouldBeNil)
+			So(uerr, ShouldBeNil)
+			So(gusr.FirstName, ShouldEqual, usr.FirstName)
+		})
+
+	})
+}
