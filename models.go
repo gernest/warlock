@@ -28,6 +28,8 @@ type Config struct {
 	DB            string
 	SessMaxAge    int
 	SessPath      string
+	RegRedir      string
+	LoginRedir    string
 	Secret        string
 }
 
@@ -48,6 +50,8 @@ func defaultConfig() *Config {
 		DB:            "warlock.db",
 		SessMaxAge:    30,
 		SessPath:      "/",
+		RegRedir:      "/auth/login",
+		LoginRedir:    "/",
 		Secret:        "My-top-secre",
 	}
 }

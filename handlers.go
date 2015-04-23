@@ -59,6 +59,7 @@ func warlock(tmpl *template.Template, cfg *Config) *Handlers {
 func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		h.Render(w, h.cfg.RegisterTmpl, nil)
+		return
 	}
 	if r.Method == "POST" {
 		r.ParseForm()
@@ -85,9 +86,15 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 			h.Render(w, h.cfg.ServerErrTmpl, nil)
 			return
 		}
-		data[".flash_success"] = "Account was created successful"
-		h.Render(w, h.cfg.LoginTmpl, data)
+		log.Println(h.cfg.RegRedir)
+		http.Redirect(w, r, h.cfg.RegRedir, http.StatusFound)
+		return
 	}
+}
+
+func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
+	h.Render(w, h.cfg.LoginTmpl, nil)
+	return
 }
 
 // Render is a helper for rndering templates
