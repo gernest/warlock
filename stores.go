@@ -147,6 +147,7 @@ func NewUserStore(db, bucket string) UserStore {
 
 // CreateUser creates a new user, email is used as the key.
 func (us UserStore) CreateUser(usr *User) error {
+	usr.CreatedAt = time.Now()
 	data, err := json.Marshal(usr)
 	if err != nil {
 		return err
@@ -175,10 +176,20 @@ func (us UserStore) GetUser(email string) (*User, error) {
 
 // UpdateUser updates user
 func (us UserStore) UpdateUser(usr *User) error {
+	usr.UpdatedAt = time.Now()
 	data, err := json.Marshal(usr)
 	if err != nil {
 		return err
 	}
 	up := us.store.Update(us.bucket, usr.Email, data)
 	return up.Error
+}
+
+// Exists checks if a give user already exists
+func (us UserStore) Exist(usr *User) bool {
+	g := us.store.Get(us.bucket, usr.Email)
+	if g.Data != nil {
+		return true
+	}
+	return false
 }

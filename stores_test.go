@@ -102,6 +102,11 @@ func TestUserStore(t *testing.T) {
 
 					So(err, ShouldNotBeNil)
 				})
+				Convey("Password mismatch", func() {
+					u.ConfirmPassword = "bogus"
+
+					So(u.Validate(), ShouldNotBeNil)
+				})
 			})
 			Convey("Check validation", func() {
 				u.FirstName = "young"
@@ -160,6 +165,7 @@ func TestUserStore(t *testing.T) {
 			So(gerr, ShouldBeNil)
 			So(uerr, ShouldBeNil)
 			So(gusr.FirstName, ShouldEqual, usr.FirstName)
+			So(ns.Exist(u), ShouldBeTrue)
 		})
 
 	})
