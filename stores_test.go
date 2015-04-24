@@ -55,6 +55,7 @@ func TestSess(t *testing.T) {
 
 							So(err, ShouldBeNil)
 							So(ss.IsNew, ShouldBeFalse)
+							So(ss.Values["user"], ShouldEqual, "youngWarlock")
 						})
 						Convey("Delete", func() {
 							err = store.Delete(req, w, s)

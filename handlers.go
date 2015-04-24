@@ -86,15 +86,79 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 			h.Render(w, h.cfg.ServerErrTmpl, nil)
 			return
 		}
-		log.Println(h.cfg.RegRedir)
+
+		ss, err := h.sess.New(r, h.cfg.SessName)
+		if err != nil {
+			log.Println(err)
+		}
+		ss.Values["user"] = user.Email
+		flash := NewFlash()
+		flash.Success("Successfully created your account")
+		flash.Add(ss)
+		ss.Save(r, w)
 		http.Redirect(w, r, h.cfg.RegRedir, http.StatusFound)
 		return
 	}
 }
 
 func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
-	h.Render(w, h.cfg.LoginTmpl, nil)
-	return
+	ss, err := h.sess.New(r, h.cfg.SessName)
+	if err != nil {
+		log.Println(err)
+	}
+	flash := NewFlash()
+	data := make(map[string]interface{})
+	if r.Method == "GET" {
+		if f := flash.Get(ss); f != nil {
+			log.Println(f)
+			data["flash"] = f.Data
+		}
+		h.Render(w, h.cfg.LoginTmpl, data)
+		return
+	}
+	if r.Method == "POST" {
+		if !ss.IsNew {
+			http.Redirect(w, r, h.cfg.LoginRedir, http.StatusFound)
+			return
+		}
+		r.ParseForm()
+		lg := new(LoginForm)
+		if err := formam.Decode(r.Form, lg); err != nil {
+			log.Println(err)
+			w.WriteHeader(http.StatusInternalServerError)
+			h.Render(w, h.cfg.ServerErrTmpl, nil)
+			return
+		}
+		if v := lg.Validate(); v != nil {
+			data["errors"] = v
+			h.Render(w, h.cfg.LoginTmpl, data)
+			return
+		}
+		user, err := h.ustore.GetUser(lg.Email)
+		flash := NewFlash()
+		if err != nil {
+			log.Println(err)
+			flash.Error("wrong email or password, correct and try again")
+			data["flash"] = flash.Data
+			h.Render(w, h.cfg.LoginTmpl, data)
+			return
+		}
+		if err = user.MatchPassword(lg.Password); err != nil {
+			log.Println(err)
+			flash.Error("wrong email or password, correct and try again")
+			data["flash"] = flash.Data
+			h.Render(w, h.cfg.LoginTmpl, data)
+			return
+		}
+		ss.Values["user"] = user.Email
+		err = ss.Save(r, w)
+		if err != nil {
+			log.Println(err)
+		}
+		http.Redirect(w, r, h.cfg.LoginRedir, http.StatusFound)
+		return
+	}
+
 }
 
 // Render is a helper for rndering templates

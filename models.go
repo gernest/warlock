@@ -6,6 +6,7 @@ import (
 
 	valid "github.com/asaskevich/govalidator"
 	"github.com/fatih/structs"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // user contain account information of a user
@@ -31,6 +32,29 @@ type Config struct {
 	RegRedir      string
 	LoginRedir    string
 	Secret        string
+	SessName      string
+}
+
+type LoginForm struct {
+	Email    string `valid:"email,required"`
+	Password string `valid:"alphanum,required"`
+}
+
+func (l *LoginForm) Validate() map[string]string {
+	m := make(map[string]string)
+	if ok, errs := valid.ValidateStruct(l); !ok {
+		switch e := errs.(type) {
+		case valid.Errors:
+			for _, v := range e {
+				switch ne := v.(type) {
+				case valid.Error:
+					m[ne.Name] = ne.Error()
+				}
+			}
+		}
+		return m
+	}
+	return nil
 }
 
 // NewConfig initializes configuration
@@ -53,6 +77,7 @@ func defaultConfig() *Config {
 		RegRedir:      "/auth/login",
 		LoginRedir:    "/",
 		Secret:        "My-top-secre",
+		SessName:      "_wrk",
 	}
 }
 
@@ -98,4 +123,7 @@ func (usr *User) Validate() map[string]string {
 		return m
 	}
 	return nil
+}
+func (u *User) MatchPassword(pass string) error {
+	return bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(pass))
 }

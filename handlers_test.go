@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"testing"
@@ -22,7 +23,8 @@ func TestHandlers(t *testing.T) {
 		y := YoungWarlock(tmpl, cfg)
 		defer y.sess.store.DeleteDatabase()
 
-		client := &http.Client{}
+		jar, _ := cookiejar.New(nil)
+		client := &http.Client{Jar: jar}
 
 		h := mux.NewRouter()
 		h.HandleFunc("/auth/register", y.Register).Methods("GET", "POST")
@@ -32,6 +34,7 @@ func TestHandlers(t *testing.T) {
 		defer ts.Close()
 
 		regURL := fmt.Sprintf("%s/auth/register", ts.URL)
+		loginUrl := fmt.Sprintf("%s/auth/login", ts.URL)
 
 		So(err, ShouldBeNil)
 		So(tmpl, ShouldNotBeNil)
@@ -60,6 +63,7 @@ func TestHandlers(t *testing.T) {
 				So(werr, ShouldBeNil)
 				So(w.StatusCode, ShouldEqual, 200)
 				So(res.String(), ShouldContainSubstring, "login")
+				So(res.String(), ShouldContainSubstring, "account")
 				Convey("ALready exists", func() {
 					w2, _ := client.PostForm(regURL, v)
 					res2 := new(bytes.Buffer)
@@ -92,6 +96,71 @@ func TestHandlers(t *testing.T) {
 				So(w.StatusCode, ShouldEqual, 200)
 				So(res.String(), ShouldContainSubstring, "should match password")
 			})
+		})
+		Convey("login", func() {
+			vars := "Email=me@me.com&Password=pass"
+
+			Convey("There is no such acount", func() {
+				v, err := url.ParseQuery(vars)
+				w, werr := client.PostForm(loginUrl, v)
+
+				So(err, ShouldBeNil)
+				So(werr, ShouldBeNil)
+				So(w.StatusCode, ShouldEqual, 200)
+			})
+			Convey("The account exixts", func() {
+				Convey("Invalid fom", func() {
+
+					v, err := url.ParseQuery("Email=me@me.com&Password=--p")
+					w, werr := client.PostForm(loginUrl, v)
+
+					So(err, ShouldBeNil)
+					So(werr, ShouldBeNil)
+					So(w.StatusCode, ShouldEqual, 200)
+				})
+				Convey("wrong form", func() {
+					v, err := url.ParseQuery("Emil=me@me.com&Password=pass")
+					w, werr := client.PostForm(loginUrl, v)
+
+					So(err, ShouldBeNil)
+					So(werr, ShouldBeNil)
+					So(w.StatusCode, ShouldEqual, 500)
+				})
+				Convey("Password mismatch", func() {
+					usr := new(User)
+					usr.Email = "me@me.com"
+					usr.Password = "pass"
+					y.ustore.CreateUser(usr)
+					v, err := url.ParseQuery("Email=me@me.com&Password=passd")
+					w, werr := client.PostForm(loginUrl, v)
+
+					So(err, ShouldBeNil)
+					So(werr, ShouldBeNil)
+					So(w.StatusCode, ShouldEqual, 200)
+				})
+				Convey("Login and create session", func() {
+					usr := new(User)
+					usr.Email = "me@me.com"
+					usr.Password = "pass"
+					y.ustore.CreateUser(usr)
+					v, err := url.ParseQuery("Email=me@me.com&Password=pass")
+					w, werr := client.PostForm(loginUrl, v)
+
+					So(err, ShouldBeNil)
+					So(werr, ShouldBeNil)
+					So(w.StatusCode, ShouldEqual, 404)
+					Convey("In session", func() {
+						v, err := url.ParseQuery("Email=me@me.com&Password=pass")
+						w, werr := client.PostForm(loginUrl, v)
+
+						So(err, ShouldBeNil)
+						So(werr, ShouldBeNil)
+						So(w.StatusCode, ShouldEqual, 404)
+					})
+				})
+
+			})
+
 		})
 	})
 }

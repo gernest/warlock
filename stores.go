@@ -4,6 +4,7 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/gernest/nutz"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // Sess implements gorilla sessions storage backend interface
@@ -31,6 +33,43 @@ type sessionValue struct {
 type UserStore struct {
 	store  nutz.Storage
 	bucket string
+}
+
+type Flash struct {
+	Data map[string]interface{}
+}
+
+func NewFlash() *Flash {
+	return &Flash{Data: make(map[string]interface{})}
+}
+func (f *Flash) Success(msg string) {
+	f.Data["FlashSuccess"] = msg
+}
+
+func (f *Flash) Notice(msg string) {
+	f.Data["FlashNotice"] = msg
+}
+
+func (f *Flash) Error(msg string) {
+	f.Data["FlashError"] = msg
+}
+func (f *Flash) Add(s *sessions.Session) {
+	data, err := json.Marshal(f)
+	if err == nil {
+		s.AddFlash(data)
+	}
+}
+
+func (f *Flash) Get(s *sessions.Session) *Flash {
+	if flashes := s.Flashes(); flashes != nil {
+		data := flashes[0]
+		if err := json.Unmarshal(data.([]byte), f); err != nil {
+			log.Println(err)
+			return nil
+		}
+		return f
+	}
+	return nil
 }
 
 // NewSessStore creates a new bolt dabase based session store backend
@@ -148,6 +187,12 @@ func NewUserStore(db, bucket string) UserStore {
 // CreateUser creates a new user, email is used as the key.
 func (us UserStore) CreateUser(usr *User) error {
 	usr.CreatedAt = time.Now()
+	p, err := bcrypt.GenerateFromPassword([]byte(usr.Password), 8)
+	if err != nil {
+		return err
+	}
+	usr.Password = string(p)
+	usr.ConfirmPassword = ""
 	data, err := json.Marshal(usr)
 	if err != nil {
 		return err
