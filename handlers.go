@@ -66,7 +66,6 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 		user := new(User)
 		data := make(map[string]interface{})
 		if err := formam.Decode(r.Form, user); err != nil {
-			log.Println(err)
 			w.WriteHeader(http.StatusInternalServerError)
 			h.Render(w, h.cfg.ServerErrTmpl, nil)
 			return

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	u "github.com/nu7hatch/gouuid"
+
 	"github.com/gernest/nutz"
 	"github.com/gorilla/securecookie"
 	"github.com/gorilla/sessions"
@@ -186,13 +188,17 @@ func NewUserStore(db, bucket string) UserStore {
 
 // CreateUser creates a new user, email is used as the key.
 func (us UserStore) CreateUser(usr *User) error {
+	uid, err := u.NewV4()
+	if err != nil {
+		log.Println(err)
+	}
+	usr.ID = uid.String()
 	usr.CreatedAt = time.Now()
 	p, err := bcrypt.GenerateFromPassword([]byte(usr.Password), 8)
 	if err != nil {
 		return err
 	}
 	usr.Password = string(p)
-	usr.ConfirmPassword = ""
 	data, err := json.Marshal(usr)
 	if err != nil {
 		return err

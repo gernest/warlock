@@ -11,11 +11,12 @@ import (
 
 // user contain account information of a user
 type User struct {
+	ID              string
 	FirstName       string `valid:"alphanum,required"`
 	LastName        string `valid:"alphanum,required"`
 	Email           string `valid:"email,required"`
 	Password        string `valid:"alphanum,required"`
-	ConfirmPassword string `valid:"alphanum,required"`
+	ConfirmPassword string `valid:"alphanum,required" json:"-"`
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }
