@@ -7,8 +7,8 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
-
 	"github.com/monoculum/formam"
 )
 
@@ -16,7 +16,7 @@ func init() {
 	log.SetFlags(log.Lshortfile)
 }
 
-// Hndlers contains set http facing auth methods
+// Handlers contains set http facing auth methods
 type Handlers struct {
 	Tmpl   *template.Template
 	sess   Sess
@@ -101,6 +101,7 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Login login users
 func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 	ss, err := h.sess.New(r, h.cfg.SessName)
 	if err != nil {
@@ -161,9 +162,42 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// Logout deletes the session
+func (h *Handlers) Logout(w http.ResponseWriter, r *http.Request) {
+	ss, err := h.sess.New(r, h.cfg.SessName)
+	if err != nil {
+		log.Println(err)
+	}
+	err = h.sess.Delete(r, w, ss)
+	if err != nil {
+		log.Println(err)
+	}
+	http.Redirect(w, r, "/", http.StatusFound)
+	return
+}
+
 // Render is a helper for rndering templates
 func (h *Handlers) Render(w http.ResponseWriter, tmpl string, data interface{}) {
 	out := new(bytes.Buffer)
 	h.Tmpl.ExecuteTemplate(out, tmpl, data)
 	io.Copy(w, out)
+}
+
+// SessionMiddleware checks for session and addss the user to context
+func (h *Handlers) SessionMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ss, err := h.sess.New(r, h.cfg.SessName)
+		if err != nil {
+			log.Println(err)
+		}
+		if !ss.IsNew {
+			context.Set(r, "inSession", true)
+			email := ss.Values["user"].(string)
+			usr, err := h.ustore.GetUser(email)
+			if err == nil {
+				context.Set(r, "user", usr)
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }

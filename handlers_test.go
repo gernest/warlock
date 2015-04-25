@@ -29,12 +29,14 @@ func TestHandlers(t *testing.T) {
 		h := mux.NewRouter()
 		h.HandleFunc("/auth/register", y.Register).Methods("GET", "POST")
 		h.HandleFunc("/auth/login", y.Login).Methods("GET", "POST")
+		h.HandleFunc("/auth/logout", y.Logout).Methods("GET", "POST")
 
 		ts := httptest.NewServer(h)
 		defer ts.Close()
 
 		regURL := fmt.Sprintf("%s/auth/register", ts.URL)
 		loginUrl := fmt.Sprintf("%s/auth/login", ts.URL)
+		logoutURL := fmt.Sprintf("%s/auth/logout", ts.URL)
 
 		So(err, ShouldBeNil)
 		So(tmpl, ShouldNotBeNil)
@@ -161,6 +163,12 @@ func TestHandlers(t *testing.T) {
 
 			})
 
+		})
+		Convey("Logout", func() {
+			w, err := client.Get(logoutURL)
+
+			So(err, ShouldBeNil)
+			So(w.StatusCode, ShouldEqual, 404)
 		})
 	})
 }
