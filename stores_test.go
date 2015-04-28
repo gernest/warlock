@@ -1,173 +1,185 @@
 package warlock
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gorilla/securecookie"
-
 	"github.com/gorilla/sessions"
-	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestSess(t *testing.T) {
-	Convey("Sess", t, func() {
-		maxAge := 30
-		sPath := "/"
-		cName := "youngWarlock"
-		dbName := "sess_store.db"
-		sBucket := "sessions"
-		secret := []byte("my-secret")
-		opts := &sessions.Options{MaxAge: maxAge, Path: sPath}
-		store := NewSessStore(dbName, sBucket, 10, opts, secret)
-		defer store.store.DeleteDatabase()
+var (
+	maxAge  = 30
+	sPath   = "/"
+	cName   = "youngWarlock"
+	dbName  = "sess_store.db"
+	sBucket = "sessions"
+	secret  = []byte("my-secret")
+	testURL = "http://www.example.com"
+)
 
-		Convey("New", func() {
-			Convey("IsNew", func() {
-				req, err := http.NewRequest("GET", "http://www.example.com", nil)
-				s, serr := store.New(req, cName)
+func TestSess_New(t *testing.T) {
+	store, req := sessSetup(t)
+	defer store.store.DeleteDatabase()
+	testNewSess(store, req, t)
+}
 
-				So(err, ShouldBeNil)
-				So(serr, ShouldEqual, http.ErrNoCookie)
-				So(s.IsNew, ShouldBeTrue)
-				So(s.Options.Path, ShouldEqual, sPath)
+func TestSess_Save(t *testing.T) {
+	opts := &sessions.Options{MaxAge: maxAge, Path: sPath}
+	store := NewSessStore(dbName, sBucket, 10, opts, secret)
+	defer store.store.DeleteDatabase()
+	req, err := http.NewRequest("GET", testURL, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	testSaveSess(store, req, t, "user", "gernest")
+}
 
-				Convey("Save", func() {
-					s.Values["user"] = "youngWarlock"
-					w := httptest.NewRecorder()
-					err = s.Save(req, w)
+func TestSess_Get(t *testing.T) {
+	opts := &sessions.Options{MaxAge: maxAge, Path: sPath}
+	store := NewSessStore(dbName, sBucket, 10, opts, secret)
+	defer store.store.DeleteDatabase()
+	req, err := http.NewRequest("GET", testURL, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	s := testSaveSess(store, req, t, "user", "gernest")
+	c, err := securecookie.EncodeMulti(s.Name(), s.ID, securecookie.CodecsFromPairs(secret)...)
+	if err != nil {
+		t.Error(err)
+	}
+	newCookie := sessions.NewCookie(s.Name(), c, opts)
+	req.AddCookie(newCookie)
+	s, err = store.New(req, cName)
+	if err != nil {
+		t.Error(err)
+	}
+	if s.IsNew {
+		t.Errorf("Expected  false, actual %v", s.IsNew)
+	}
+	ss, err := store.Get(req, cName)
+	if err != nil {
+		t.Error(err)
+	}
+	if ss.IsNew {
+		t.Errorf("Expected  false, actual %v", ss.IsNew)
+	}
+	if ss.Values["user"] != "gernest" {
+		t.Errorf("Expected gernest, actual %s", ss.Values["user"])
+	}
+}
 
-					So(err, ShouldBeNil)
-
-					Convey("IsNotNew", func() {
-						c, err := securecookie.EncodeMulti(s.Name(), s.ID, securecookie.CodecsFromPairs(secret)...)
-						newCookie := sessions.NewCookie(s.Name(), c, opts)
-						req.AddCookie(newCookie)
-						ns, nerr := store.New(req, cName)
-
-						So(err, ShouldBeNil)
-						So(nerr, ShouldBeNil)
-						So(ns.IsNew, ShouldBeFalse)
-
-						Convey("Get", func() {
-							ss, err := store.Get(req, cName)
-
-							So(err, ShouldBeNil)
-							So(ss.IsNew, ShouldBeFalse)
-							So(ss.Values["user"], ShouldEqual, "youngWarlock")
-						})
-						Convey("Delete", func() {
-							err = store.Delete(req, w, s)
-							So(err, ShouldBeNil)
-						})
-
-					})
-
-				})
-
-			})
-		})
-
-	})
+func TestSess_Delete(t *testing.T) {
+	store, req := sessSetup(t)
+	defer store.store.DeleteDatabase()
+	s := testSaveSess(store, req, t, "user", "gernest")
+	w := httptest.NewRecorder()
+	err := store.Delete(req, w, s)
+	if err != nil {
+		t.Error(err)
+	}
 }
 
 func TestUserStore(t *testing.T) {
-	Convey("UserStore", t, func() {
-		ns := NewUserStore("users.db", "account")
-		defer ns.store.DeleteDatabase()
+	ns := NewUserStore("users.db", "account")
+	defer ns.store.DeleteDatabase()
 
-		Convey("Create new user", func() {
-			u := new(User)
-			v := u.Validate()
-			err := ns.CreateUser(u)
+	usrs := []struct {
+		first, last, email string
+	}{
+		{"geofrey", "ernest", "gernest@home.com"},
+		{"young", "warlock", "warlock@home.com"},
+	}
 
-			So(v, ShouldNotBeNil)
-			So(err, ShouldNotBeNil)
+	// CreateUser
+	for _, usr := range usrs {
+		u := new(User)
+		u.FirstName = usr.first
+		u.LastName = usr.last
+		u.Email = usr.email
+		err := ns.CreateUser(u)
+		if err != nil {
+			t.Error(err)
+		}
+	}
 
-			Convey("A valid user", func() {
-				u.FirstName = "young"
-				u.LastName = "wrlock"
-				u.Email = "example@example.com"
-				u.Password = "smash"
-				u.ConfirmPassword = "smash"
-
-				v = u.Validate()
-				err = ns.CreateUser(u)
-
-				So(v, ShouldBeNil)
-				So(err, ShouldBeNil)
-
-				Convey("Already Registered user", func() {
-					err := ns.CreateUser(u)
-
-					So(err, ShouldNotBeNil)
-				})
-				Convey("Password mismatch", func() {
-					u.ConfirmPassword = "bogus"
-
-					So(u.Validate(), ShouldNotBeNil)
-				})
-			})
-			Convey("Check validation", func() {
-				u.FirstName = "young"
-				u.LastName = "wrlock"
-				u.Email = "example@example.com"
-				u.Password = "smash"
-
-				v = u.Validate()
-
-				So(v, ShouldNotBeNil)
-			})
-
-		})
-		Convey("Retrieving a user", func() {
-			u := &User{
-				FirstName:       "young",
-				LastName:        "warlock",
-				Email:           "wrlock@bigbang,com",
-				Password:        "shamsh",
-				ConfirmPassword: "smash",
+	// GetUser
+	for _, usr := range usrs {
+		u, err := ns.GetUser(usr.email)
+		if err != nil {
+			t.Error(err)
+		}
+		// just for fun
+		if !ns.Exist(u) {
+			t.Errorf("Expected true actual %v", ns.Exist(u))
+		}
+		if err == nil {
+			if u.FirstName != usr.first {
+				t.Errorf("Expected %s actual %s", usr.first, u.FirstName)
 			}
-
-			err := ns.CreateUser(u)
-
-			usr, uerr := ns.GetUser(u.Email)
-
-			So(err, ShouldBeNil)
-			So(uerr, ShouldBeNil)
-			So(usr.FirstName, ShouldEqual, u.FirstName)
-
-			Convey("Retriving a missing record", func() {
-				usr, err = ns.GetUser("bogus@me.com")
-
-				So(usr, ShouldBeNil)
-				So(err, ShouldNotBeNil)
-			})
-		})
-		Convey("Update User", func() {
-			u := &User{
-				FirstName:       "young",
-				LastName:        "warlock",
-				Email:           "updatek@bigbang,com",
-				Password:        "shamsh",
-				ConfirmPassword: "smash",
+			if u.LastName != usr.last {
+				t.Errorf("Expected %s actual %s", usr.last, u.LastName)
 			}
-			cerr := ns.CreateUser(u)
-			usr, err := ns.GetUser(u.Email)
+			if u.Email != usr.email {
+				t.Errorf("Expected %s actual %s", usr.email, u.Email)
+			}
+		}
+	}
 
-			usr.FirstName = "gernest"
-			uerr := ns.UpdateUser(usr)
+	// UpdateUser
+	for _, usr := range usrs {
+		u, err := ns.GetUser(usr.email)
+		if err != nil {
+			t.Error(err)
+		}
+		fn := fmt.Sprintf("%s wa", u.FirstName)
+		u.FirstName = fn
+		err = ns.UpdateUser(u)
+		if err != nil {
+			t.Error(err)
+		}
+		if err == nil {
+			us, uerr := ns.GetUser(usr.email)
+			if uerr != nil {
+				t.Error(uerr)
+			}
+			if uerr == nil {
+				if us.FirstName != fn {
+					t.Errorf("Expected %s actual %s", fn, us.FirstName)
+				}
+			}
+		}
+	}
 
-			gusr, gerr := ns.GetUser(u.Email)
-
-			So(cerr, ShouldBeNil)
-			So(err, ShouldBeNil)
-			So(gerr, ShouldBeNil)
-			So(uerr, ShouldBeNil)
-			So(gusr.FirstName, ShouldEqual, usr.FirstName)
-			So(ns.Exist(u), ShouldBeTrue)
-		})
-
-	})
+}
+func sessSetup(t *testing.T) (Sess, *http.Request) {
+	opts := &sessions.Options{MaxAge: maxAge, Path: sPath}
+	store := NewSessStore(dbName, sBucket, 10, opts, secret)
+	req, err := http.NewRequest("GET", testURL, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	return store, req
+}
+func testNewSess(ss Sess, req *http.Request, t *testing.T) *sessions.Session {
+	s, err := ss.New(req, cName)
+	if err == nil {
+		if !s.IsNew {
+			t.Errorf("Expected true actual %v", s.IsNew)
+		}
+		t.Errorf("Expected \"http: named cookie not present\" actual nil")
+	}
+	return s
+}
+func testSaveSess(ss Sess, req *http.Request, t *testing.T, key, val string) *sessions.Session {
+	s := testNewSess(ss, req, t)
+	s.Values[key] = val
+	w := httptest.NewRecorder()
+	err := s.Save(req, w)
+	if err != nil {
+		t.Error(err)
+	}
+	return s
 }
