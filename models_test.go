@@ -2,30 +2,24 @@ package warlock
 
 import (
 	"testing"
-
-	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestConfig(t *testing.T) {
-	Convey("Configuration", t, func() {
-		Convey("Default", func() {
-			c := NewConfig(nil)
+func TestConfig_defaults(t *testing.T) {
+	c := NewConfig(nil)
+	if c.DB != "warlock.db" {
+		t.Errorf("Expected warlock.db actual %s", c.DB)
+	}
 
-			So(c.DB, ShouldEqual, "warlock.db")
-			So(c.SessMaxAge, ShouldEqual, 30)
-		})
-		Convey("Custom", func() {
-			c := &Config{DB: "chaos.db"}
-			cfg := NewConfig(c)
+}
 
-			cc := new(Config)
-			cc.DB = "chaos.db"
-			ccf := NewConfig(cc)
+func TestConfig_custom(t *testing.T) {
+	c := &Config{DB: "chaos.db"}
+	cfg := NewConfig(c)
 
-			So(cfg.DB, ShouldEqual, "chaos.db")
-			So(ccf.DB, ShouldEqual, "chaos.db")
-			So(ccf.SessMaxAge, ShouldEqual, 30)
-
-		})
-	})
+	if cfg.DB != c.DB {
+		t.Errorf("Expected %s actual %s", c.DB, cfg.DB)
+	}
+	if cfg.SessMaxAge != 30 {
+		t.Errorf("Expected 30 actual %d", cfg.SessMaxAge)
+	}
 }
