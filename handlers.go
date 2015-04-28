@@ -77,6 +77,7 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 		}
 		if h.ustore.Exist(user) {
 			data[".error"] = "user already exists"
+			w.WriteHeader(http.StatusBadRequest)
 			h.Render(w, h.cfg.RegisterTmpl, data)
 			return
 		}

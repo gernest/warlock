@@ -9,166 +9,221 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
-	. "github.com/smartystreets/goconvey/convey"
 )
 
-func TestHandlers(t *testing.T) {
-	Convey("Register handler", t, func() {
-		files := "fixture/templates/*.html"
-		tmpl, err := template.ParseGlob(files)
-		cfg := new(Config)
-		y := YoungWarlock(tmpl, cfg)
-		defer y.sess.store.DeleteDatabase()
+var (
+	lPath = "/auth/login"
+	rPath = "/auth/register"
+	oPath = "/auth/logout"
+)
 
-		jar, _ := cookiejar.New(nil)
-		client := &http.Client{Jar: jar}
+func cleanUp(s string) {
+	os.Remove(s)
+}
+func TestHandlers_Register(t *testing.T) {
+	ts, client, _ := testServer(t)
+	defer ts.Close()
+	defer cleanUp("warlock_test.db")
+	reqURL := fmt.Sprintf("%s%s", ts.URL, rPath)
 
-		h := mux.NewRouter()
-		h.HandleFunc("/auth/register", y.Register).Methods("GET", "POST")
-		h.HandleFunc("/auth/login", y.Login).Methods("GET", "POST")
-		h.HandleFunc("/auth/logout", y.Logout).Methods("GET", "POST")
+	// Get
+	w, err := client.Get(reqURL)
+	if err != nil {
+		t.Error(err)
+	}
+	res := new(bytes.Buffer)
+	defer w.Body.Close()
+	io.Copy(res, w.Body)
+	if !strings.Contains(res.String(), "register") {
+		t.Errorf("Expected %s to contain register", res.String())
+	}
 
-		ts := httptest.NewServer(h)
-		defer ts.Close()
+	// POST
+	vars := "FirstName=young&LastName=warlock&Email=me@me.com&Password=pass&ConfirmPassword=pass"
+	v, err := url.ParseQuery(vars)
+	if err != nil {
+		t.Error(err)
+	}
+	wp, err := client.PostForm(reqURL, v)
+	if err != nil {
+		t.Error(err)
+	}
+	res.Reset()
+	defer wp.Body.Close()
 
-		regURL := fmt.Sprintf("%s/auth/register", ts.URL)
-		loginUrl := fmt.Sprintf("%s/auth/login", ts.URL)
-		logoutURL := fmt.Sprintf("%s/auth/logout", ts.URL)
+	io.Copy(res, wp.Body)
+	if wp.StatusCode != 200 {
+		t.Errorf("Expected 200 actual %d", wp.StatusCode)
+	}
+	if !strings.Contains(res.String(), "login") {
+		t.Errorf("Expected %s to contain login", res.String())
+	}
 
-		So(err, ShouldBeNil)
-		So(tmpl, ShouldNotBeNil)
-		Convey("register", func() {
-			vars := "FirstName=young&LastName=warlock&Email=me@me.com&Password=pass&ConfirmPassword=pass"
-			Convey("Get", func() {
-				w, err := client.Get(regURL)
-				res := new(bytes.Buffer)
-				defer w.Body.Close()
-				io.Copy(res, w.Body)
+	// Already exists
+	we, err := client.PostForm(reqURL, v)
+	if err != nil {
+		t.Error(err)
+	}
+	res.Reset()
+	defer we.Body.Close()
 
-				So(err, ShouldBeNil)
-				So(res.String(), ShouldContainSubstring, "register")
+	io.Copy(res, we.Body)
+	if we.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected %d actual %d", http.StatusBadRequest, we.StatusCode)
+	}
+	if !strings.Contains(res.String(), "register") {
+		t.Errorf("Expected %s to contain login", res.String())
+	}
 
-			})
-			Convey("POST", func() {
-				v, err := url.ParseQuery(vars)
-				w, werr := client.PostForm(regURL, v)
+	// Failure to decode
+	vars2 := "firstName=young&LastName=warlock&Email=me@me.com&Password=pass&ConfirmPassword=pass"
+	v, err = url.ParseQuery(vars2)
+	if err != nil {
+		t.Error(err)
+	}
+	wf, err := client.PostForm(reqURL, v)
+	if err != nil {
+		t.Error(err)
+	}
+	res.Reset()
+	defer w.Body.Close()
+	io.Copy(res, wf.Body)
 
-				defer w.Body.Close()
+	if wf.StatusCode != 500 {
+		t.Errorf("Expected 500 actual %d", wf.StatusCode)
+	}
+	if !strings.Contains(res.String(), "crashes") {
+		t.Errorf("Expected %s to contain crashes", res.String())
+	}
 
-				res := new(bytes.Buffer)
-				io.Copy(res, w.Body)
+	// Failure to validate
+	vars2 = "FirstName=young&LastName=warlock&Email=me@me.com&Password=pass&ConfirmPassword=past"
+	v, err = url.ParseQuery(vars2)
+	if err != nil {
+		t.Error(err)
+	}
+	wv, err := client.PostForm(reqURL, v)
+	if err != nil {
+		t.Error(err)
+	}
+	res.Reset()
+	defer wv.Body.Close()
+	io.Copy(res, wv.Body)
 
-				So(err, ShouldBeNil)
-				So(werr, ShouldBeNil)
-				So(w.StatusCode, ShouldEqual, 200)
-				So(res.String(), ShouldContainSubstring, "login")
-				So(res.String(), ShouldContainSubstring, "account")
-				Convey("ALready exists", func() {
-					w2, _ := client.PostForm(regURL, v)
-					res2 := new(bytes.Buffer)
-					io.Copy(res2, w2.Body)
-					So(res2.String(), ShouldContainSubstring, "register")
-				})
-			})
+	if wv.StatusCode != 200 {
+		t.Errorf("Expected 200 actual %s", wv.StatusCode)
+	}
+	if !strings.Contains(res.String(), "should match password") {
+		t.Errorf("Expect %s to countain should match password", res.String())
+	}
 
-			Convey("Fail to decode", func() {
-				vars2 := "firstName=young&LastName=warlock&Email=me@me.com&Password=pass&ConfirmPassword=pass"
-				v, err := url.ParseQuery(vars2)
-				w, _ := client.PostForm(regURL, v)
-				defer w.Body.Close()
-				res := new(bytes.Buffer)
-				io.Copy(res, w.Body)
+}
 
-				So(err, ShouldBeNil)
-				So(w.StatusCode, ShouldEqual, 500)
-				So(res.String(), ShouldContainSubstring, "crashes")
-			})
-			Convey("Fail to validate", func() {
-				vars2 := "FirstName=young&LastName=warlock&Email=me@me.com&Password=pass&ConfirmPassword=past"
-				v, err := url.ParseQuery(vars2)
-				w, _ := client.PostForm(regURL, v)
-				defer w.Body.Close()
-				res := new(bytes.Buffer)
-				io.Copy(res, w.Body)
+func TestHandlers_Login(t *testing.T) {
+	ts, client, y := testServer(t)
+	defer ts.Close()
+	defer cleanUp("warlock_test.db")
+	reqURL := fmt.Sprintf("%s%s", ts.URL, lPath)
 
-				So(err, ShouldBeNil)
-				So(w.StatusCode, ShouldEqual, 200)
-				So(res.String(), ShouldContainSubstring, "should match password")
-			})
-		})
-		Convey("login", func() {
-			vars := "Email=me@me.com&Password=pass"
+	// There is no such user yet
+	vars := "Email=me@me.com&Password=pass"
+	v, err := url.ParseQuery(vars)
+	if err != nil {
+		t.Error(err)
+	}
+	w, err := client.PostForm(reqURL, v)
+	if err != nil {
+		t.Error(err)
+	}
+	defer w.Body.Close()
+	res := new(bytes.Buffer)
+	io.Copy(res, w.Body)
+	if w.StatusCode != http.StatusOK {
+		t.Errorf("Expected %d actual %d", http.StatusOK, w.StatusCode)
+	}
+	if !strings.Contains(res.String(), "login") {
+		t.Errorf("Expected %s to contain login", res.String())
+	}
 
-			Convey("There is no such acount", func() {
-				v, err := url.ParseQuery(vars)
-				w, werr := client.PostForm(loginUrl, v)
+	// Bad form
+	v, err = url.ParseQuery("Emil=me@me.com&Password=pass")
+	wi, err := client.PostForm(reqURL, v)
+	if err != nil {
+		t.Error(err)
+	}
+	defer wi.Body.Close()
+	if wi.StatusCode != http.StatusInternalServerError {
+		t.Errorf("Expected %d actual %d", http.StatusInternalServerError, wi.StatusCode)
+	}
 
-				So(err, ShouldBeNil)
-				So(werr, ShouldBeNil)
-				So(w.StatusCode, ShouldEqual, 200)
-			})
-			Convey("The account exixts", func() {
-				Convey("Invalid fom", func() {
+	/// fails to validate
+	usr := new(User)
+	usr.Email = "me@me.com"
+	usr.Password = "pass"
+	y.ustore.CreateUser(usr)
+	v, err = url.ParseQuery("Email=me@me.com&Password=pass")
+	if err != nil {
+		t.Error(err)
+	}
+	wp, err := client.PostForm(reqURL, v)
+	if err != nil {
+		t.Error(err)
+	}
+	defer wp.Body.Close()
+	if wp.StatusCode != http.StatusNotFound {
+		t.Errorf("Expected %d actual %s", http.StatusNotFound, wp.StatusCode)
+	}
 
-					v, err := url.ParseQuery("Email=me@me.com&Password=--p")
-					w, werr := client.PostForm(loginUrl, v)
+	// Login
+	v, err = url.ParseQuery("Email=me@me.com&Password=pass")
+	if err != nil {
+		t.Error(err)
+	}
+	wr, err := client.PostForm(reqURL, v)
+	if err != nil {
+		t.Error(err)
+	}
+	if wr.StatusCode != http.StatusNotFound {
+		t.Errorf("Expected d actual %d", http.StatusNotFound, wr.StatusCode)
+	}
 
-					So(err, ShouldBeNil)
-					So(werr, ShouldBeNil)
-					So(w.StatusCode, ShouldEqual, 200)
-				})
-				Convey("wrong form", func() {
-					v, err := url.ParseQuery("Emil=me@me.com&Password=pass")
-					w, werr := client.PostForm(loginUrl, v)
+	out, err := client.Get(fmt.Sprintf("%s%s", ts.URL, oPath))
+	if err != nil {
+		t.Error(err)
+	}
+	defer out.Body.Close()
+	if out.StatusCode != http.StatusNotFound {
+		t.Errorf("Expected %d actual %d", http.StatusNotFound, w.StatusCode)
+	}
 
-					So(err, ShouldBeNil)
-					So(werr, ShouldBeNil)
-					So(w.StatusCode, ShouldEqual, 500)
-				})
-				Convey("Password mismatch", func() {
-					usr := new(User)
-					usr.Email = "me@me.com"
-					usr.Password = "pass"
-					y.ustore.CreateUser(usr)
-					v, err := url.ParseQuery("Email=me@me.com&Password=passd")
-					w, werr := client.PostForm(loginUrl, v)
+}
 
-					So(err, ShouldBeNil)
-					So(werr, ShouldBeNil)
-					So(w.StatusCode, ShouldEqual, 200)
-				})
-				Convey("Login and create session", func() {
-					usr := new(User)
-					usr.Email = "me@me.com"
-					usr.Password = "pass"
-					y.ustore.CreateUser(usr)
-					v, err := url.ParseQuery("Email=me@me.com&Password=pass")
-					w, werr := client.PostForm(loginUrl, v)
+func testServer(t *testing.T) (*httptest.Server, *http.Client, *Handlers) {
+	files := "fixture/templates/*.html"
+	tmpl, err := template.ParseGlob(files)
+	if err != nil {
+		t.Error(err)
+	}
+	cfg := new(Config)
+	cfg.DB = "warlock_test.db"
+	y := YoungWarlock(tmpl, cfg)
 
-					So(err, ShouldBeNil)
-					So(werr, ShouldBeNil)
-					So(w.StatusCode, ShouldEqual, 404)
-					Convey("In session", func() {
-						v, err := url.ParseQuery("Email=me@me.com&Password=pass")
-						w, werr := client.PostForm(loginUrl, v)
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Error(err)
+	}
+	client := &http.Client{Jar: jar}
 
-						So(err, ShouldBeNil)
-						So(werr, ShouldBeNil)
-						So(w.StatusCode, ShouldEqual, 404)
-					})
-				})
+	h := mux.NewRouter()
+	h.HandleFunc("/auth/register", y.Register).Methods("GET", "POST")
+	h.HandleFunc("/auth/login", y.Login).Methods("GET", "POST")
+	h.HandleFunc("/auth/logout", y.Logout).Methods("GET", "POST")
 
-			})
-
-		})
-		Convey("Logout", func() {
-			w, err := client.Get(logoutURL)
-
-			So(err, ShouldBeNil)
-			So(w.StatusCode, ShouldEqual, 404)
-		})
-	})
+	ts := httptest.NewServer(h)
+	return ts, client, y
 }
