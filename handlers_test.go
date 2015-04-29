@@ -3,7 +3,6 @@ package warlock
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -14,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/mux"
+	"github.com/unrolled/render"
 )
 
 var (
@@ -57,8 +57,8 @@ func TestHandlers_Register(t *testing.T) {
 	defer wp.Body.Close()
 
 	io.Copy(res, wp.Body)
-	if wp.StatusCode != 200 {
-		t.Errorf("Expected 200 actual %d", wp.StatusCode)
+	if wp.StatusCode != http.StatusOK {
+		t.Errorf("Expected %d actual %d", http.StatusOK, wp.StatusCode)
 	}
 	if !strings.Contains(res.String(), "login") {
 		t.Errorf("Expected %s to contain login", res.String())
@@ -73,8 +73,8 @@ func TestHandlers_Register(t *testing.T) {
 	defer we.Body.Close()
 
 	io.Copy(res, we.Body)
-	if we.StatusCode != http.StatusBadRequest {
-		t.Errorf("Expected %d actual %d", http.StatusBadRequest, we.StatusCode)
+	if we.StatusCode != http.StatusOK {
+		t.Errorf("Expected %d actual %d", http.StatusOK, we.StatusCode)
 	}
 	if !strings.Contains(res.String(), "register") {
 		t.Errorf("Expected %s to contain login", res.String())
@@ -94,7 +94,7 @@ func TestHandlers_Register(t *testing.T) {
 	defer w.Body.Close()
 	io.Copy(res, wf.Body)
 
-	if wf.StatusCode != 500 {
+	if wf.StatusCode != http.StatusInternalServerError {
 		t.Errorf("Expected 500 actual %d", wf.StatusCode)
 	}
 	if !strings.Contains(res.String(), "crashes") {
@@ -115,7 +115,7 @@ func TestHandlers_Register(t *testing.T) {
 	defer wv.Body.Close()
 	io.Copy(res, wv.Body)
 
-	if wv.StatusCode != 200 {
+	if wv.StatusCode != http.StatusOK {
 		t.Errorf("Expected 200 actual %s", wv.StatusCode)
 	}
 	if !strings.Contains(res.String(), "should match password") {
@@ -143,8 +143,8 @@ func TestHandlers_Login(t *testing.T) {
 	defer w.Body.Close()
 	res := new(bytes.Buffer)
 	io.Copy(res, w.Body)
-	if w.StatusCode != http.StatusOK {
-		t.Errorf("Expected %d actual %d", http.StatusOK, w.StatusCode)
+	if w.StatusCode != http.StatusInternalServerError {
+		t.Errorf("Expected %d actual %d", http.StatusInternalServerError, w.StatusCode)
 	}
 	if !strings.Contains(res.String(), "login") {
 		t.Errorf("Expected %s to contain login", res.String())
@@ -204,14 +204,11 @@ func TestHandlers_Login(t *testing.T) {
 }
 
 func testServer(t *testing.T) (*httptest.Server, *http.Client, *Handlers) {
-	files := "fixture/templates/*.html"
-	tmpl, err := template.ParseGlob(files)
-	if err != nil {
-		t.Error(err)
-	}
 	cfg := new(Config)
 	cfg.DB = "warlock_test.db"
-	y := YoungWarlock(tmpl, cfg)
+	opts := render.Options{Directory: "fixture"}
+
+	y := YoungWarlock(opts, cfg)
 
 	jar, err := cookiejar.New(nil)
 	if err != nil {

@@ -68,10 +68,10 @@ func NewConfig(cfg *Config) *Config {
 }
 func defaultConfig() *Config {
 	return &Config{
-		RegisterTmpl:  "register.html",
-		LoginTmpl:     "login.html",
-		NotFoundTmpl:  "404.htl",
-		ServerErrTmpl: "500.html",
+		RegisterTmpl:  "register",
+		LoginTmpl:     "login",
+		NotFoundTmpl:  "404",
+		ServerErrTmpl: "500",
 		DB:            "warlock.db",
 		SessMaxAge:    30,
 		SessPath:      "/",
