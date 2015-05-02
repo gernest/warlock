@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gernest/render"
 	"github.com/gorilla/mux"
-	"github.com/unrolled/render"
 )
 
 var (

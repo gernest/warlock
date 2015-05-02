@@ -3,10 +3,10 @@ package warlock
 import (
 	"net/http"
 
+	"github.com/gernest/render"
 	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
 	"github.com/monoculum/formam"
-	"github.com/unrolled/render"
 )
 
 // Handlers contains set http facing auth methods
@@ -55,18 +55,18 @@ func (h *Handlers) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		r.ParseForm()
 		user := new(User)
-		data := make(map[string]interface{})
+		data := render.NewTemplateData()
 		if err := formam.Decode(r.Form, user); err != nil {
 			h.rendr.HTML(w, http.StatusInternalServerError, h.cfg.ServerErrTmpl, nil)
 			return
 		}
 		if v := user.Validate(); v != nil {
-			data["errors"] = v
+			data.Add("errors", v)
 			h.rendr.HTML(w, http.StatusOK, h.cfg.RegisterTmpl, data)
 			return
 		}
 		if h.ustore.Exist(user) {
-			data[".error"] = "user already exists"
+			data.Add("error", "user already exist")
 			h.rendr.HTML(w, http.StatusOK, h.cfg.RegisterTmpl, data)
 			return
 		}
@@ -96,10 +96,10 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 		// TODO (gernest): log this error
 	}
 	flash := NewFlash()
-	data := make(map[string]interface{})
+	data := render.NewTemplateData()
 	if r.Method == "GET" {
 		if f := flash.Get(ss); f != nil {
-			data["flash"] = f.Data
+			data.Add("flash", f.Data)
 		}
 		h.rendr.HTML(w, http.StatusOK, h.cfg.LoginTmpl, data)
 		return
@@ -116,21 +116,20 @@ func (h *Handlers) Login(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if v := lg.Validate(); v != nil {
-			data["errors"] = v
+			data.Add("errors", v)
 			h.rendr.HTML(w, http.StatusInternalServerError, h.cfg.LoginTmpl, data)
 			return
 		}
 		user, err := h.ustore.GetUser(lg.Email)
-		flash := NewFlash()
 		if err != nil {
 			flash.Error("wrong email or password, correct and try again")
-			data["flash"] = flash.Data
+			data.Add("flash", flash.Data)
 			h.rendr.HTML(w, http.StatusInternalServerError, h.cfg.LoginTmpl, data)
 			return
 		}
 		if err = user.MatchPassword(lg.Password); err != nil {
 			flash.Error("wrong email or password, correct and try again")
-			data["flash"] = flash.Data
+			data.Add("flash", flash.Data)
 			h.rendr.HTML(w, http.StatusOK, h.cfg.LoginTmpl, data)
 			return
 		}
