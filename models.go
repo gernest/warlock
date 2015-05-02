@@ -68,8 +68,8 @@ func NewConfig(cfg *Config) *Config {
 }
 func defaultConfig() *Config {
 	return &Config{
-		RegisterTmpl:  "register",
-		LoginTmpl:     "login",
+		RegisterTmpl:  "auth/register",
+		LoginTmpl:     "auth/login",
 		NotFoundTmpl:  "404",
 		ServerErrTmpl: "500",
 		DB:            "warlock.db",
@@ -82,6 +82,7 @@ func defaultConfig() *Config {
 	}
 }
 
+// mix default config values with the custom one into one config object
 func mergeConfig(src *Config, base *Config) *Config {
 	s := src
 	d := base
