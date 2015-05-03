@@ -23,17 +23,17 @@ type User struct {
 
 // Config a basic configuration settings
 type Config struct {
-	RegisterTmpl  string
-	LoginTmpl     string
-	NotFoundTmpl  string
-	ServerErrTmpl string
-	DB            string
-	SessMaxAge    int
-	SessPath      string
-	RegRedir      string
-	LoginRedir    string
-	Secret        string
-	SessName      string
+	RegisterTmpl  string `json:"reg_templ"`
+	LoginTmpl     string `json:"login_templ"`
+	NotFoundTmpl  string `json:"not_found_templ"`
+	ServerErrTmpl string `json:"server_error_templ"`
+	DB            string `json:"db"`
+	SessMaxAge    int    `json:"session_max_age"`
+	SessPath      string `json:"session_path"`
+	RegRedir      string `json:"reg_redirect"`
+	LoginRedir    string `json:"login_redirect"`
+	Secret        string `json:"secret"`
+	SessName      string `json:"session_name`
 }
 
 type LoginForm struct {

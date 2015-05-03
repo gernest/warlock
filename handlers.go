@@ -21,6 +21,7 @@ type Handlers struct {
 func YoungWarlock(args ...interface{}) *Handlers {
 	var opts render.Options
 	var cfg *Config
+	var rendr *render.Render
 
 	for _, v := range args {
 		switch t := v.(type) {
@@ -30,16 +31,25 @@ func YoungWarlock(args ...interface{}) *Handlers {
 			if cfg == nil {
 				cfg = t
 			}
+		case *render.Render:
+			rendr = t
+
 		}
 	}
-	return warlock(opts, cfg)
+	return warlock(opts, cfg, rendr)
 }
 
-func warlock(opts render.Options, cfg *Config) *Handlers {
+func warlock(opts render.Options, cfg *Config, r *render.Render) *Handlers {
+	var rendr *render.Render
 	c := NewConfig(cfg)
 	opt := &sessions.Options{MaxAge: c.SessMaxAge, Path: c.SessPath}
+	rendr = render.New(opts)
+	if r != nil {
+		rendr = r
+	}
+
 	return &Handlers{
-		rendr:  render.New(opts),
+		rendr:  rendr,
 		sess:   NewSessStore(c.DB, "sessions", 100, opt, []byte(c.Secret)),
 		ustore: NewUserStore(c.DB, "warlock"),
 		cfg:    c,
