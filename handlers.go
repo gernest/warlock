@@ -28,9 +28,7 @@ func YoungWarlock(args ...interface{}) *Handlers {
 		case render.Options:
 			opts = t
 		case *Config:
-			if cfg == nil {
-				cfg = t
-			}
+			cfg = t
 		case *render.Render:
 			rendr = t
 

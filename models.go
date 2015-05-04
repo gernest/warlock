@@ -33,7 +33,7 @@ type Config struct {
 	RegRedir      string `json:"reg_redirect"`
 	LoginRedir    string `json:"login_redirect"`
 	Secret        string `json:"secret"`
-	SessName      string `json:"session_name`
+	SessName      string `json:"session_name"`
 }
 
 type LoginForm struct {
