@@ -1,6 +1,7 @@
 package warlock
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gernest/render"
@@ -174,12 +175,12 @@ func (h *Handlers) SessionMiddleware(next http.Handler) http.Handler {
 			// TODO (gernest): log this error
 		}
 		if !ss.IsNew {
-			context.Set(r, "inSession", true)
 			email := ss.Values["user"].(string)
 			usr, err := h.ustore.GetUser(email)
 			if err == nil {
 				context.Set(r, "user", usr)
 			}
+			log.Println("sess found")
 		}
 		next.ServeHTTP(w, r)
 	})
