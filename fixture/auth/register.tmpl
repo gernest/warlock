@@ -1,0 +1,8 @@
+<h2>register</h2>
+{{if .errors}}
+<ul>
+{{range $k,$v:=.errors}}
+	<li>{{$k}}{{$v}}</li>
+{{end}}
+{{end}}
+</ul>
